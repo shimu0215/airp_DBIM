@@ -44,10 +44,12 @@ from tqdm import tqdm
 
 from argument import parse_opt_DBIM as parse_opt
 from AIRP_read_data import read_dataset
-from DBIM_utils import read_dataloader, perturb_coordinates, sub_center
+from DBIM_utils import read_dataloader, perturb_coordinates, sub_center, plot_result
 from models import DBIMGenerativeModel, DBIMLoss, polynomial_schedule
 
 from torch_geometric.loader import DataLoader
+
+from torch.utils.tensorboard import SummaryWriter
 
 
 def get_snr(alpha, sigma):
@@ -112,7 +114,17 @@ def train(args):
     atom_type_scaling = args.atom_type_scaling
     max_atom_number = args.max_atom_number
 
+    batch_result_list = []
+    epoch_result_list = []
+
+    best_val_loss = float('inf')
+    patience = args.patience
+    counter = 0
+
+    writer = SummaryWriter(log_dir="runs/exp1")
+
     for epoch in range(epochs):
+        epoch_loss = 0.0
         for batch_idx, data in enumerate(train_loader):
             generative_model.train()
             optimizer.zero_grad()
@@ -136,27 +148,67 @@ def train(args):
             xT = perturb_coordinates(x0=x0)
             xT = sub_center(xT)
 
-            h = torch.cat([h, xT], dim=-1)
-            h = torch.cat([h, t_norm], dim=-1)
-
             noise = torch.randn_like(xT, device=device)
             noise = sub_center(noise)
 
             xt = ats[t] * xT + bts[t] * x0 + cts[t]* noise
             xt = sub_center(xt)
 
-            _, pos_predict = generative_model(xt=xt, h=h, mask=node_mask)
+            assert not torch.isnan(xt).any(), "xt contains NaN!"
+            assert not torch.isinf(xt).any(), "xt contains Inf!"
+
+            h = torch.cat([h, xt], dim=-1)
+            h = torch.cat([h, t_norm], dim=-1)
+
+            _, pos_predict = generative_model(xt=xT, h=h, mask=node_mask)
+
+            assert not torch.isnan(pos_predict).any(), "xp contains NaN!"
+            assert not torch.isinf(pos_predict).any(), "xp contains Inf!"
             pos_predict = sub_center(pos_predict)
 
             node_mask = node_mask.view(curr_batch_size, max_atom_number, -1)
             loss = criterion(model_predict=pos_predict, xt=xt,  sigma=sigmas[t], x0=x0, node_mask=node_mask)
 
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(generative_model.parameters(), max_norm=1.0)
             optimizer.step()
+
+            writer.add_scalar("Loss/batch_loss", loss.item(), batch_idx)
+
+            # if loss.item() < 2:
+            #     epoch_loss += loss.item()
+            #     batch_result_list.append(loss.item())
+            # else:
+            #     epoch_loss += batch_result_list[-1]
+            #     batch_result_list.append(batch_result_list[-1])
 
             if batch_idx % 5 == 0:
                 print(f"Epoch [{epoch + 1}/{epochs}] Batch [{batch_idx}/{len(train_loader)}] Loss: {loss.item():.10f}")
                 print(F.mse_loss(x0 * node_mask, xT * node_mask))
+                # print(F.mse_loss(x0 * node_mask, pos_predict * node_mask))
+
+        epoch_loss = epoch_loss / len(train_loader)
+        epoch_result_list.append(epoch_loss)
+
+        writer.add_scalar("Loss/epoch_loss", epoch_loss.item(), epoch)
+
+        if torch.isnan(epoch):
+            break
+
+        val_loss = epoch_loss
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            counter = 0
+            torch.save(generative_model.state_dict(), 'saved_model/DBIM_model.pth')
+        else:
+            counter += 1
+            if counter >= patience:
+                print("Early stopping triggered")
+                break
+
+    plot_result(batch_result_list, name='batch_results')
+    plot_result(epoch_result_list, name='epoch_results')
 
 
 if __name__ == '__main__':

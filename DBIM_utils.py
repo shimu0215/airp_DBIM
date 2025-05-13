@@ -30,3 +30,19 @@ def sub_center(x):
     result = x - center_of_mass
 
     return result
+
+import matplotlib.pyplot as plt
+
+def plot_result(result_list, name):
+    x = list(range(len(result_list))) 
+    y = result_list
+
+    plt.figure(figsize=(6, 4))
+    plt.plot(x, y, label='Result')
+    plt.xlabel('Step')
+    plt.ylabel('Value')
+    plt.title('Result Trend')
+    plt.grid(True)
+    plt.legend()
+
+    plt.savefig('vis/'+name, dpi=300, bbox_inches='tight') 
