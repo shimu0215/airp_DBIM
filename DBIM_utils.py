@@ -2,6 +2,8 @@ import torch
 from AIRP_read_data import read_dataset
 from torch_geometric.loader import DataLoader
 
+from models import DBIMGenerativeModel
+
 def read_dataloader(args):
 
     batch_size = args.batch_size
@@ -46,3 +48,18 @@ def plot_result(result_list, name):
     plt.legend()
 
     plt.savefig('vis/'+name, dpi=300, bbox_inches='tight') 
+
+def load_model(model_path, device, dtype):
+
+    model = DBIMGenerativeModel().to(device)
+
+    ckpt = torch.load(model_path, map_location=device)
+
+    if isinstance(ckpt, dict) and "state_dict" in ckpt:
+        state_dict = ckpt["state_dict"]
+    else:
+        state_dict = ckpt
+
+    model.load_state_dict(state_dict)
+
+    return model

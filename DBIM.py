@@ -30,6 +30,7 @@ import argparse
 import math
 import os
 from pathlib import Path
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -44,7 +45,7 @@ from tqdm import tqdm
 
 from argument import parse_opt_DBIM as parse_opt
 from AIRP_read_data import read_dataset
-from DBIM_utils import read_dataloader, perturb_coordinates, sub_center, plot_result
+from DBIM_utils import read_dataloader, perturb_coordinates, sub_center, plot_result, load_model
 from models import DBIMGenerativeModel, DBIMLoss, polynomial_schedule
 
 from torch_geometric.loader import DataLoader
@@ -104,8 +105,9 @@ def train(args):
     train_loader, val_loader, test_loader = read_dataloader(args)
 
     epochs = args.epochs
-    generative_model = DBIMGenerativeModel().to(device)
-    optimizer = torch.optim.AdamW(generative_model.parameters(), lr=args.lr, amsgrad=True, weight_decay=1e-12)
+    # generative_model = DBIMGenerativeModel().to(device)
+    generative_model = load_model(model_path='saved_model/DBIM_model.pth', device=device, dtype=dtype)
+    optimizer = torch.optim.AdamW(generative_model.parameters(), lr=args.lr, amsgrad=False, weight_decay=1e-12)
     criterion = DBIMLoss()
 
     T = args.T
@@ -121,10 +123,12 @@ def train(args):
     patience = args.patience
     counter = 0
 
-    writer = SummaryWriter(log_dir="runs/exp1")
+    writer = SummaryWriter(log_dir=f"runs2/exp_on_whole_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    batch_count = 0
 
     for epoch in range(epochs):
         epoch_loss = 0.0
+        
         for batch_idx, data in enumerate(train_loader):
             generative_model.train()
             optimizer.zero_grad()
@@ -173,14 +177,19 @@ def train(args):
             torch.nn.utils.clip_grad_norm_(generative_model.parameters(), max_norm=1.0)
             optimizer.step()
 
-            writer.add_scalar("Loss/batch_loss", loss.item(), batch_idx)
+            if loss.item() < 2:
+                epoch_loss += loss.item()
+                batch_result_list.append(loss.item())
+                writer.add_scalar("Loss/batch_loss", loss.item(), batch_count+batch_idx)
+            else:
+                epoch_loss += batch_result_list[-1]
+                batch_result_list.append(batch_result_list[-1])
+                writer.add_scalar("Loss/batch_loss", batch_result_list[-1], batch_count+batch_idx)
 
-            # if loss.item() < 2:
-            #     epoch_loss += loss.item()
-            #     batch_result_list.append(loss.item())
-            # else:
-            #     epoch_loss += batch_result_list[-1]
-            #     batch_result_list.append(batch_result_list[-1])
+            # epoch_loss += loss.item()
+            # batch_result_list.append(loss.item())
+
+            batch_count += batch_idx
 
             if batch_idx % 5 == 0:
                 print(f"Epoch [{epoch + 1}/{epochs}] Batch [{batch_idx}/{len(train_loader)}] Loss: {loss.item():.10f}")
@@ -190,9 +199,9 @@ def train(args):
         epoch_loss = epoch_loss / len(train_loader)
         epoch_result_list.append(epoch_loss)
 
-        writer.add_scalar("Loss/epoch_loss", epoch_loss.item(), epoch)
+        writer.add_scalar("Loss/epoch_loss", epoch_loss, epoch)
 
-        if torch.isnan(epoch):
+        if math.isnan(epoch_loss):
             break
 
         val_loss = epoch_loss
@@ -209,6 +218,8 @@ def train(args):
 
     plot_result(batch_result_list, name='batch_results')
     plot_result(epoch_result_list, name='epoch_results')
+
+    writer.close()
 
 
 if __name__ == '__main__':

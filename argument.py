@@ -7,19 +7,19 @@ def parse_opt_DBIM():
 
     parser.add_argument('--device', type=str, default="auto", help='Computation device.')
 
-    parser.add_argument('--data_path', type=str, default="../airp/processed", help='Computation device.')
+    parser.add_argument('--data_path', type=str, default="../airp/processed-real", help='Computation device.')
     parser.add_argument('--max_atom_number', type=int, default=29, help='Computation device.')
     parser.add_argument('--max_atom_id', type=int, default=10, help='Computation device.')
 
     parser.add_argument('--batch_size', type=int, default=256, help='Computation device.')
-    parser.add_argument('--train_ratio', type=float, default=0.8, help='Computation device.')
-    parser.add_argument('--val_ratio', type=float, default=0.1, help='Computation device.')
+    parser.add_argument('--train_ratio', type=float, default=0.6, help='Computation device.')
+    parser.add_argument('--val_ratio', type=float, default=0.2, help='Computation device.')
 
     parser.add_argument('--T', type=int, default=1000, help='Computation device.')
     parser.add_argument('--eta', type=int, default=0, help='Computation device.')
     parser.add_argument('--epochs', type=int, default=150, help='Computation device.')
-    parser.add_argument('--lr', type=float, default=1e-3, help='Computation device.')
-    parser.add_argument('--patience', type=int, default=50, help='Computation device.')
+    parser.add_argument('--lr', type=float, default=1e-4, help='Computation device.')
+    parser.add_argument('--patience', type=int, default=10, help='Computation device.')
     parser.add_argument('--atom_type_scaling', type=int, default=0.25, help='Computation device.')
 
     parser.add_argument('--training', type=bool, default=True, help='Computation device.')
