@@ -10,10 +10,10 @@ class DBIMLoss(nn.Module):
         super(DBIMLoss, self).__init__()
         self.mse_loss = nn.MSELoss()
 
-    def forward(self, model_predict, xt,  sigma, x0, node_mask):
+    def forward(self, model_predict, xt, x0, node_mask, noise):
 
         # F_theta = model_predict - xt
-        # x_theta = xt - sigma * F_theta
+        # x_theta = xt - F_theta
         
         # x_theta = x_theta / sigma ** 2
         # x0 = x0 / sigma ** 2
@@ -23,6 +23,8 @@ class DBIMLoss(nn.Module):
         # x0 = x0 / sigma ** 2
 
         loss = self.mse_loss(model_predict * node_mask, x0 * node_mask)
+
+        # loss = self.mse_loss((model_predict-xt) * node_mask, noise * node_mask)
 
         return loss
 

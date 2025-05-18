@@ -19,7 +19,7 @@ def read_dataloader(args):
 
     return train_loader, val_loader, test_loader
 
-def perturb_coordinates(x0, noise_std=0.3):
+def perturb_coordinates(x0, noise_std=1):
 
     noise = torch.randn_like(x0) * noise_std
     xT = x0 + noise
